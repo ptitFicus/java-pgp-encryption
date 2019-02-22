@@ -1,19 +1,23 @@
 package com.ptitficus.pgp.encryption;
 
 import name.neuhalfen.projects.crypto.bouncycastle.openpgp.BouncyGPG;
+import name.neuhalfen.projects.crypto.bouncycastle.openpgp.keys.callbacks.KeySelectionStrategy;
 import name.neuhalfen.projects.crypto.bouncycastle.openpgp.keys.callbacks.KeyringConfigCallbacks;
 import name.neuhalfen.projects.crypto.bouncycastle.openpgp.keys.keyrings.InMemoryKeyring;
 import name.neuhalfen.projects.crypto.bouncycastle.openpgp.keys.keyrings.KeyringConfig;
 import name.neuhalfen.projects.crypto.bouncycastle.openpgp.keys.keyrings.KeyringConfigs;
 import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.io.Streams;
 
+import javax.annotation.Nullable;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Security;
 import java.security.SignatureException;
+import java.util.Set;
 
 public class App {
     private final static String pubKey = "-----BEGIN PGP PUBLIC KEY BLOCK-----\n" +
@@ -55,14 +59,28 @@ public class App {
 
         ByteArrayOutputStream result = new ByteArrayOutputStream();
 
+        KeySelectionStrategy selectionStrategy = new KeySelectionStrategy() {
+            @Nullable
+            @Override
+            public PGPPublicKey selectPublicKey(PURPOSE purpose, String uid, KeyringConfig keyring) throws PGPException, IOException {
+                return keyring.getPublicKeyRings().getKeyRings().next().getPublicKey();
+            }
+
+            @Override
+            public Set<PGPPublicKey> validPublicKeysForVerifyingSignatures(String uid, KeyringConfig keyring) throws PGPException, IOException {
+                throw new RuntimeException("Not implementd");
+            }
+        };
+
         try (
                 BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(result, 16384 * 1024);
 
                 final OutputStream outputStream = BouncyGPG
                         .encryptToStream()
                         .withConfig(keyringConfigOfSender)
+                        .withKeySelectionStrategy(selectionStrategy)
                         .withStrongAlgorithms()
-                        .toRecipient("benjamin.cavy@gmail.com")
+                        .toRecipient("foo") // no matters with public key selection strategy
                         .andDoNotSign()
                         .binaryOutput()
                         .andWriteTo(bufferedOutputStream);
